@@ -1,0 +1,31 @@
+- name: Create a directory for rancher if it does not exist
+  ansible.builtin.file:
+    path: /data/rancher
+    state: directory
+    mode: '0755'
+
+# - name: start rancher with docker
+#   shell: |-
+#     docker run -d --name rancher --restart=unless-stopped --privileged \
+#       -v /data/rancher:/var/lib/rancher -p 443:443 -p 80:80 \
+#       -e CATTLE_AGENT_IMAGE="registry.cn-hangzhou.aliyuncs.com/rancher/rancher-agent:v2.8.2" \
+#       registry.cn-hangzhou.aliyuncs.com/rancher/rancher:v2.8.2
+
+- name: Start rancher with docker
+  community.docker.docker_container:
+    name: rancher
+    image: registry.cn-hangzhou.aliyuncs.com/rancher/rancher:v2.8.2
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - 443:443
+      - 80:80
+    privileged: true
+    volumes:
+      - /data/rancher:/var/lib/rancher
+    env:
+      CATTLE_AGENT_IMAGE: "registry.cn-hangzhou.aliyuncs.com/rancher/rancher-agent:v2.8.2"
+
+- name: Action for next
+  debug:
+    msg: "Wait for the rancher ready , then open Rancher portal, and take action accorind the guid."

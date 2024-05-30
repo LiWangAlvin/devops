@@ -1,0 +1,82 @@
+- name: Create a data directory if it does not exist
+  ansible.builtin.file:
+    path: /data/harbor
+    state: directory
+    mode: '0755'
+
+- name: upload harbor offline package
+  ansible.builtin.copy:
+    src: harbor-offline-installer-v2.9.4.tgz
+    dest: /tmp/harbor-offline-installer-v2.9.4.tgz
+
+- name: upload harbor cert
+  ansible.builtin.copy:
+    src: "{{ cert_file }}"
+    dest: /data/harbor/cert
+
+- name: upload harbor cert-key
+  ansible.builtin.copy:
+    src: "{{ cert_key_file }}"
+    dest: /data/harbor/cert.key
+
+- name: Extract harbor offline package
+  ansible.builtin.unarchive:
+    src: /tmp/harbor-offline-installer-v2.9.4.tgz
+    dest: /tmp/
+    remote_src: true
+
+- name: copy template config file
+  ansible.builtin.copy:
+    src: /tmp/harbor/harbor.yml.tmpl
+    dest: /tmp/harbor/harbor.yml
+    remote_src: true
+
+- name: update harbor config
+  ansible.builtin.lineinfile:
+    path: /tmp/harbor/harbor.yml
+    regexp: '^hostname:'
+    line: "hostname: {{ hostname }}"
+
+- name: update harbor config
+  ansible.builtin.lineinfile:
+    path: /tmp/harbor/harbor.yml
+    regexp: '^data_volume:'
+    line: "data_volume: /data/harbor"
+
+- name: update harbor config
+  ansible.builtin.lineinfile:
+    path: /tmp/harbor/harbor.yml
+    regexp: '^data_volume:'
+    line: "data_volume: /data/harbor"
+
+- name: update cert location
+  ansible.builtin.lineinfile:
+    path: /tmp/harbor/harbor.yml
+    regexp: '^  certificate:'
+    line: '  certificate: /data/harbor/cert'
+
+- name: update cert location
+  ansible.builtin.lineinfile:
+    path: /tmp/harbor/harbor.yml
+    regexp: '^  private_key:'
+    line: '  private_key: /data/harbor/cert.key'
+
+
+- name: load iamges
+  shell: docker load -i /tmp/harbor/harbor.v2.9.4.tar.gz
+
+- name: upload docker-compose
+  ansible.builtin.copy:
+    src: docker-compose-linux-x86_64
+    dest: /usr/local/bin/docker-compose
+    mode: 0755
+
+- name: prepare
+  shell: /tmp/harbor/prepare
+
+- name: install.sh
+  shell: /tmp/harbor/install.sh
+
+- name: print admin init password
+  ansible.builtin.debug:
+    msg: "Login https://{{ hostname }} and change the tnitial user: admin / Harbor12345"

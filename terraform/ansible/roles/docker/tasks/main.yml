@@ -1,0 +1,85 @@
+- name: disable firewalld
+  ansible.builtin.systemd_service:
+      state: stopped
+      name: firewalld
+      enabled: false
+
+- name: Disable SELinux
+  ansible.posix.selinux:
+    state: disabled
+
+- name: install pkgs
+  ansible.builtin.package:
+    name:
+      - wget
+      - jq
+      - psmisc
+      - vim
+      - net-tools
+      - telnet
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - git
+    state: latest
+
+- name: add docker repo
+  copy:
+    src: docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: Add modules and make sure it is loaded after reboots
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  with_items:
+   - overlay
+   - br_netfilter
+   - iptable_filter
+   - iptable_nat
+
+- name: add 99-kubernetes-cri.conf
+  copy:
+    src: 99-kubernetes-cri.conf
+    dest: /etc/sysctl.d/99-kubernetes-cri.conf
+
+- name: create docker folder
+  file:
+    path: /etc/docker/
+    state: directory
+
+- name: install docker
+  ansible.builtin.package:
+    name:
+      - docker-ce
+    state: latest
+
+- name: add harbor into insecure_registries
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+
+- name: add harbor into insecure_registries
+  lineinfile:
+    path: /etc/containerd/config.toml
+    line: |
+      [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry:80"]
+      endpoint = ["https://{{ harbor_endpoint }}"]
+
+- name: start docker
+  ansible.builtin.systemd_service:
+      state: started
+      name: docker
+      enabled: true
+
+- name: Update grub to enable cpu cgroup
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    line: GRUB_CMDLINE_LINUX="cgroup_enable=cpu"
+  notify:
+    - update grub
+    - Reboot
+
+- name: Flush handlers
+  meta: flush_handlers

@@ -1,0 +1,38 @@
+- name: download rpm package
+  ansible.builtin.get_url:
+    url: https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el9/gitlab-ce-16.11.0-ce.0.el9.x86_64.rpm
+    dest: /tmp/gitlab-ce-16.11.0-ce.0.el9.x86_64.rpm
+    checksum: sha256:fe188ee17179a8a116709f49e10e134fd3c1fa556e51eae6c43044af9fba6553
+
+- name: Install the gitlab-ce
+  ansible.builtin.yum:
+    name: /tmp/gitlab-ce-16.11.0-ce.0.el9.x86_64.rpm
+    state: present
+    disable_gpg_check: true
+
+- name: update gitlab external_url
+  ansible.builtin.lineinfile:
+    path:   /etc/gitlab/gitlab.rb
+    regexp: '^external_url'
+    line: external_url 'http://{{ external_url }}'
+
+- name: upgrade gitlab
+  shell: gitlab-ctl reconfigure
+
+# - name: restart gitlab
+#   shell: gitlab-ctl restart
+
+- name: wait for jenkins ready
+  ansible.builtin.wait_for:
+    path: /etc/gitlab/initial_root_password
+    state: present
+    msg: Timeout to find file /etc/gitlab/initial_root_password
+    timeout: 300
+
+- name: read initial admin pass
+  shell: "grep 'Password:' /etc/gitlab/initial_root_password"
+  register: rootPass
+
+- name: print admin init password
+  ansible.builtin.debug:
+    msg: "{{ rootPass.stdout }}"

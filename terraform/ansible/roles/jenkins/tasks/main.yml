@@ -1,0 +1,63 @@
+- name: Create a data directory if it does not exist
+  ansible.builtin.file:
+    path: /jenkins/jenkins-data
+    state: directory
+    # owner: 1000
+    # group: 1000
+    mode: '0755'
+
+- name: copy backup file to jenkins server
+  ansible.builtin.copy:
+    src: jenkins-backup.tar.gz
+    dest: /tmp/jenkins-backup.tar.gz
+  when: from_backup
+
+- name: Extract /jenkins/jenkins-data
+  ansible.builtin.unarchive:
+    src: /tmp/jenkins-backup.tar.gz
+    dest: /jenkins/
+    remote_src: true
+  when: from_backup
+
+# sudo docker run -d \
+# 	--restart=always  \
+#    --name jenkins \
+#    -u root \
+#    -p 8080:8080 \
+#    -p 50000:50000 \
+#    -v /jenkins/jenkins-data:/var/jenkins_home \
+#    -v /var/run/docker.sock:/var/run/docker.sock \
+#    jenkins/jenkins
+- name: Start jenkins with docker
+  community.docker.docker_container:
+    name: jenkins
+    image: jenkins/jenkins
+    state: started
+    privileged: true
+    user: root
+    restart_policy: unless-stopped
+    ports:
+      - 50000:50000
+      - 8080:8080
+    volumes:
+      - /jenkins/jenkins-data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+# 如果是初始安装就需要打印
+- name: wait for jenkins ready
+  ansible.builtin.wait_for:
+    path: /jenkins/jenkins-data/secrets/initialAdminPassword
+    state: present
+    msg: Timeout to find file /jenkins/jenkins-data/secrets/initialAdminPassword
+    timeout: 300
+  when: not from_backup
+
+- name: read initial admin pass
+  shell: cat /jenkins/jenkins-data/secrets/initialAdminPassword
+  register: adminPass
+  when: not from_backup
+
+- name: print admin init password
+  ansible.builtin.debug:
+    msg: "The initial password is: {{ adminPass.stdout }}"
+  when: not from_backup

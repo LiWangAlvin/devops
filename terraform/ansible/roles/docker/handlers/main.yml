@@ -1,0 +1,5 @@
+  - name: update grub
+    shell: grub2-mkconfig
+
+  - name: Reboot
+    ansible.builtin.reboot:
